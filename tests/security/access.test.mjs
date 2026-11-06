@@ -103,6 +103,12 @@ function expectDenied(response, context) {
   assert.ok(response.error, `${context}: operation unexpectedly succeeded`);
 }
 
+function expectConflict(response, context) {
+  assert.ok(response.error, `${context}: must reject the conflicting request`);
+  assert.equal(response.status, 409, `${context}: must return an HTTP conflict without retries`);
+  assert.equal(response.error.code, 'PT409', `${context}: must use a non-retryable conflict code`);
+}
+
 before(async () => {
   const accounts = JSON.parse(
     await readFile(new URL('../../.local/test-accounts.json', import.meta.url), 'utf8'),
@@ -489,7 +495,7 @@ test('stale versions block task edits, transitions and deletion', async () => {
       p_expected_version: original.version,
     }),
   );
-  expectDenied(
+  expectConflict(
     await clients.manager2.rpc('update_task', {
       p_id: original.id,
       p_project_id: project.id,
@@ -500,8 +506,8 @@ test('stale versions block task edits, transitions and deletion', async () => {
     }),
     'stale task edit',
   );
-  expectDenied(await transition(clients.executor1, original, 'in_progress'), 'stale transition');
-  expectDenied(
+  expectConflict(await transition(clients.executor1, original, 'in_progress'), 'stale transition');
+  expectConflict(
     await clients.manager.rpc('delete_task', {
       p_id: original.id,
       p_expected_version: original.version,
@@ -528,6 +534,10 @@ test('two concurrent transitions cannot both commit or create duplicate audit ev
   ]);
   assert.equal(responses.filter((response) => !response.error).length, 1);
   assert.equal(responses.filter((response) => response.error).length, 1);
+  expectConflict(
+    responses.find((response) => response.error),
+    'concurrent transition loser',
+  );
   assert.equal((await getTask(task.id)).version, task.version + 1);
   assert.equal((await history(task.id)).length, 2);
 });
@@ -546,7 +556,7 @@ test('project stale edits and deletion are rejected; task movement updates objec
   );
   assert.equal(changedProject.name, 'Новое имя объекта');
   assert.equal(changedProject.version, first.version + 1);
-  expectDenied(
+  expectConflict(
     await clients.manager.rpc('update_project', {
       p_id: first.id,
       p_name: 'Устаревшее имя',
@@ -555,7 +565,7 @@ test('project stale edits and deletion are rejected; task movement updates objec
     }),
     'stale project update',
   );
-  expectDenied(
+  expectConflict(
     await clients.manager.rpc('delete_project', {
       p_id: first.id,
       p_expected_version: first.version,

@@ -158,6 +158,12 @@ test('executor and manager complete rework cycle with mandatory comment and pers
   const managerContext = await browser.newContext();
   const executor = await executorContext.newPage();
   const manager = await managerContext.newPage();
+  // Keep this handoff asynchronous even on a fast local database.
+  await manager.route('**/rest/v1/rpc/transition_task', async (route) => {
+    if (route.request().postDataJSON()?.p_to_status === 'rework')
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.continue();
+  });
   try {
     await login(executor, 'executor1');
     await executor.goto(`/tasks/${task.id}`);
@@ -166,6 +172,8 @@ test('executor and manager complete rework cycle with mandatory comment and pers
     );
     await executor.getByRole('button', { name: 'Взять в работу', exact: true }).click();
     await executor.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(executor.getByRole('status')).toHaveText('Статус задачи обновлён.');
+    await expect(executor.locator('.title-status')).toContainText('На проверке');
     await expect(executor.getByRole('button', { name: 'Принять задачу', exact: true })).toHaveCount(
       0,
     );
@@ -180,21 +188,27 @@ test('executor and manager complete rework cycle with mandatory comment and pers
     ).toBe('in_review');
     await comment.fill('Уточните отметки и приложите результат повторной проверки.');
     await manager.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
+    await expect(manager.getByRole('status')).toHaveText('Статус задачи обновлён.');
+    await expect(manager.locator('.title-status')).toContainText('На доработке');
     await expect(
       manager
-        .getByText('Уточните отметки и приложите результат повторной проверки.', { exact: true })
-        .first(),
+        .locator('.history-list')
+        .getByText('Уточните отметки и приложите результат повторной проверки.', { exact: true }),
     ).toBeVisible();
     await executor.reload();
     await expect(
       executor
-        .getByText('Уточните отметки и приложите результат повторной проверки.', { exact: true })
-        .first(),
+        .locator('.history-list')
+        .getByText('Уточните отметки и приложите результат повторной проверки.', { exact: true }),
     ).toBeVisible();
     await executor.getByRole('button', { name: /Взять в работу|Продолжить работу/ }).click();
     await executor.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(executor.getByRole('status')).toHaveText('Статус задачи обновлён.');
+    await expect(executor.locator('.title-status')).toContainText('На проверке');
     await manager.reload();
     await manager.getByRole('button', { name: 'Принять задачу', exact: true }).click();
+    await expect(manager.getByRole('status')).toHaveText('Статус задачи обновлён.');
+    await expect(manager.locator('.title-status')).toContainText('Принята');
     await expect(manager.getByRole('button', { name: 'Принять задачу', exact: true })).toHaveCount(
       0,
     );

@@ -1,0 +1,29 @@
+.construction-scene {
+  width: min(100%, 430px);
+  aspect-ratio: 46 / 30;
+  margin: 12px auto 0;
+  position: relative;
+  isolation: isolate;
+}
+.construction-scene__view {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+.construction-scene svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+@media (max-width: 980px) {
+  .construction-scene {
+    width: min(100%, 340px);
+  }
+}
+@media (max-width: 720px) {
+  .construction-scene {
+    width: min(100%, 250px);
+    margin-top: 0;
+  }
+}
